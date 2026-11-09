@@ -12,6 +12,16 @@ A small self-hosted Discord bot that tracks how long a user spends **online**, *
 
 To get a notification only when you come online, set the alert channel to **Only @mentions** (long-press the channel → Notification Settings).
 
+### The tracked account never gets reports
+
+- `OWNER_IDS` (who gets alerts) is required, and the bot won't start if it contains a tracked ID.
+- Before every post, the bot checks that no tracked account can see the alert channel. If one can, the bot DMs the owners instead.
+- `/stats` and `/timeline` are hidden from everyone except server admins, and only `OWNER_IDS` can run them. Their replies are visible only to the person who ran them.
+
+To make the alert channel private: long-press the channel → **Edit Channel** → **Permissions** → turn on **Private Channel**. Then add only your main account; the bot can see it as an admin. Tracked accounts are left out automatically.
+
+The tracked account still has to be in a server with the bot so the bot can see its status. If it's in your private server, don't give it a role with Administrator or "View Channels" on the alert channel.
+
 Replies are ephemeral (only the person who runs the command sees them), and only the IDs in `OWNER_IDS` can use the commands.
 
 ## Privacy

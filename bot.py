@@ -48,7 +48,9 @@ def _int(name: str) -> int:
 
 TOKEN = os.getenv("DISCORD_TOKEN", "").strip()
 TRACKED = _ids("TRACKED_USER_IDS")
-OWNERS = _ids("OWNER_IDS") or TRACKED
+# Accounts that receive alerts and can use commands. Never falls back to the
+# tracked accounts: a tracked account must never receive its own report.
+OWNERS = _ids("OWNER_IDS")
 GUILD_ID = _int("GUILD_ID")
 NOTIFY_CHANNEL_ID = _int("NOTIFY_CHANNEL_ID")
 PING_ON_ONLINE = os.getenv("PING_ON_ONLINE", "true").strip().lower() not in ("0", "false", "no", "off")
@@ -248,20 +250,46 @@ class Tracker(discord.Client):
         else:
             await self.notify(change_message(name, old, status, devices, now - old_start, exact, now))
 
+    async def tracked_can_see(self, channel) -> bool:
+        """True if any tracked account could read this channel."""
+        guild = getattr(channel, "guild", None)
+        if guild is None:
+            return True  # not a server channel: can't verify, so treat as unsafe
+        for uid in TRACKED:
+            member = guild.get_member(uid)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(uid)
+                except discord.NotFound:
+                    continue  # not in this server
+            if channel.permissions_for(member).view_channel:
+                return True
+        return False
+
     async def notify(self, text: str | None = None, *, ping: bool = False,
                      embeds: list[discord.Embed] | None = None) -> None:
-        """Send to NOTIFY_CHANNEL_ID, or DM the owners if no channel is set."""
+        """Send to NOTIFY_CHANNEL_ID, or DM the owners if no channel is set.
+
+        Never sends anything to a tracked account: OWNERS can't contain tracked
+        IDs (checked at startup), and the channel is skipped if a tracked
+        account can see it.
+        """
         try:
             if NOTIFY_CHANNEL_ID:
-                if ping and text:
-                    text = " ".join(f"<@{o}>" for o in sorted(OWNERS)) + " " + text
                 channel = self.get_channel(NOTIFY_CHANNEL_ID) or await self.fetch_channel(NOTIFY_CHANNEL_ID)
-                await channel.send(
-                    text, embeds=embeds or [],
-                    allowed_mentions=discord.AllowedMentions(users=ping, everyone=False, roles=False),
-                )
-                return
+                if not await self.tracked_can_see(channel):
+                    if ping and text:
+                        text = " ".join(f"<@{o}>" for o in sorted(OWNERS)) + " " + text
+                    await channel.send(
+                        text, embeds=embeds or [],
+                        allowed_mentions=discord.AllowedMentions(users=ping, everyone=False, roles=False),
+                    )
+                    return
+                log.error("A tracked account can see the alert channel, so the alert was sent by DM "
+                          "instead. Make the channel private (see README).")
             for owner_id in OWNERS:  # DMs always notify, no mention needed
+                if owner_id in TRACKED:
+                    continue
                 user = self.get_user(owner_id) or await self.fetch_user(owner_id)
                 await user.send(text, embeds=embeds or [])
         except discord.HTTPException as e:
@@ -318,8 +346,6 @@ client = Tracker()
 def pick_user(interaction: discord.Interaction, user: discord.User | None) -> int | None:
     if user is not None:
         return user.id if user.id in TRACKED else None
-    if interaction.user.id in TRACKED:
-        return interaction.user.id
     return min(TRACKED) if TRACKED else None
 
 
@@ -338,8 +364,12 @@ PERIODS = [
 ]
 
 
-@client.tree.command(description="How long you've been online / idle / offline")
-@app_commands.describe(period="Time range", user="Tracked user (defaults to you)")
+# Commands are hidden from everyone except server admins (you, as server
+# owner), so the tracked account doesn't even see them in the / menu.
+@client.tree.command(description="Time spent online / idle / offline")
+@app_commands.default_permissions(administrator=True)
+@app_commands.guild_only()
+@app_commands.describe(period="Time range", user="Tracked user (defaults to the first one)")
 @app_commands.choices(period=PERIODS)
 async def stats(
     interaction: discord.Interaction,
@@ -359,7 +389,9 @@ async def stats(
 
 
 @client.tree.command(description="List of status changes for a day")
-@app_commands.describe(day="Which day", user="Tracked user (defaults to you)")
+@app_commands.default_permissions(administrator=True)
+@app_commands.guild_only()
+@app_commands.describe(day="Which day", user="Tracked user (defaults to the first one)")
 @app_commands.choices(day=PERIODS[:2])
 async def timeline(
     interaction: discord.Interaction,
@@ -396,6 +428,11 @@ def main() -> None:
         sys.exit("DISCORD_TOKEN is missing. Copy .env.example to .env and fill it in.")
     if not TRACKED:
         sys.exit("TRACKED_USER_IDS is empty. Add at least one Discord user ID to .env.")
+    if not OWNERS:
+        sys.exit("OWNER_IDS is empty. Add the account that should receive the reports.")
+    if OWNERS & TRACKED:
+        sys.exit("An ID is in both OWNER_IDS and TRACKED_USER_IDS. "
+                 "Tracked accounts must never receive reports, so remove it from OWNER_IDS.")
     try:
         client.run(TOKEN, log_handler=None)
     finally:
