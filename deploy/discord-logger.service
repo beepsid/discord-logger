@@ -1,0 +1,18 @@
+# systemd service for running the bot on a Linux VM (e.g. Oracle Cloud Always Free).
+# Install: see "Option C" in README.md.
+[Unit]
+Description=Discord presence logger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/discord-logger
+# Reads DISCORD_TOKEN etc. from the git-ignored .env next to bot.py
+ExecStart=/home/ubuntu/discord-logger/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

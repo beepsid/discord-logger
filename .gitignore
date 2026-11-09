@@ -1,0 +1,28 @@
+# --- secrets / private config: never commit ---
+.env
+.env.*
+!.env.example
+
+# --- your tracking data: never commit ---
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+*.log.old
+bot.pid
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# --- editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

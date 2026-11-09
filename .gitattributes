@@ -1,0 +1,4 @@
+# Shell scripts must keep Unix line endings or they break on Android/Linux
+*.sh text eol=lf
+*.service text eol=lf
+Dockerfile text eol=lf
