@@ -108,5 +108,19 @@ class Store:
                 mobile += dur
         return by_status, mobile
 
+    def active_stretches(self, user_id: int, start: float, end: float) -> list[tuple[float, float]]:
+        """Continuous non-offline stretches ("sessions") within [start, end].
+        Online/idle/dnd back-to-back count as one stretch; going offline or
+        bot downtime splits them."""
+        out: list[tuple[float, float]] = []
+        for s in self.sessions(user_id, start, end):
+            if s.status == "offline":
+                continue
+            if out and s.started_at - out[-1][1] <= 1:
+                out[-1] = (out[-1][0], s.ended_at)
+            else:
+                out.append((s.started_at, s.ended_at))
+        return out
+
     def close(self) -> None:
         self.conn.close()

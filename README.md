@@ -4,9 +4,13 @@ A small self-hosted Discord bot that tracks how long a user spends **online**, *
 
 - `/stats [period] [user]`: time per status for today, yesterday, the last 7 days or the last 30 days, plus time active on mobile
 - `/timeline [day] [user]`: every status change for a day, with the devices used
-- A message on every status change, sent to a channel or by DM, for example:
-  > 🌙 Idle · **you** on mobile
-  > was 🟢 Online for 45m · 14:47:12
+- Alerts in a channel (or by DM):
+  - **Comes online** → pings you: "🟢 Online · **you** came online on mobile, was offline for 3h 12m"
+  - **Idle / do not disturb** → no ping: "🌙 Idle · was 🟢 Online for 45m"
+  - **Goes offline** → session recap: "⚫ **you** went offline · was on for **2h 5m**, 🟢 1h 30m · 🌙 30m · ⛔ 5m"
+- A daily summary at `SUMMARY_TIME` with time per status, number of sessions, longest session, and first and last seen
+
+To get a notification only when you come online, set the alert channel to **Only @mentions** (long-press the channel → Notification Settings).
 
 Replies are ephemeral (only the person who runs the command sees them), and only the IDs in `OWNER_IDS` can use the commands.
 
